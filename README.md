@@ -2,6 +2,8 @@
 
 A simple, browser-based sound level meter that uses your device's microphone to measure and display audio levels in real-time.
 
+🔴 [Live Demo](https://YOUR_USERNAME.github.io/phonometer/)
+
 ## Features
 
 - Real-time audio level monitoring
