@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phonometer</title>
+    <style>
+        .meter-container {
+            width: 300px;
+            margin: 50px auto;
+            text-align: center;
+        }
+
+        .meter {
+            width: 100%;
+            height: 30px;
+            border: 2px solid #333;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .meter-level {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #FFC107);
+            transition: width 0.2s ease-in-out;
+        }
+
+        #volume-value {
+            margin-top: 10px;
+            font-size: 18px;
+        }
+
+        .sensitivity-control {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        #sensitivity {
+            width: 150px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="meter-container">
+        <h2>Sound Level Meter</h2>
+        <div class="meter">
+            <div class="meter-level" id="meter-level"></div>
+        </div>
+        <div id="volume-value">Volume: 0 dB</div>
+        <div class="sensitivity-control">
+            <label for="sensitivity">Sensitivity:</label>
+            <input type="range" id="sensitivity" min="1" max="300" value="100">
+            <span id="sensitivity-value">100%</span>
+        </div>
+        <div class="sensitivity-control">
+            <label for="threshold">Noise Threshold:</label>
+            <input type="range" id="threshold" min="0" max="50" value="10">
+            <span id="threshold-value">10%</span>
+        </div>
+    </div>
+
+    <script>
+        async function setupPhonometer() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(stream);
+                const analyzer = audioContext.createAnalyser();
+
+                analyzer.fftSize = 1024;
+                analyzer.smoothingTimeConstant = 0.8;
+                source.connect(analyzer);
+
+                const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+                const meterLevel = document.getElementById('meter-level');
+                const volumeValue = document.getElementById('volume-value');
+                const sensitivitySlider = document.getElementById('sensitivity');
+                const sensitivityValue = document.getElementById('sensitivity-value');
+                const thresholdSlider = document.getElementById('threshold');
+                const thresholdValue = document.getElementById('threshold-value');
+
+                sensitivitySlider.addEventListener('input', function () {
+                    sensitivityValue.textContent = this.value + '%';
+                });
+
+                thresholdSlider.addEventListener('input', function () {
+                    thresholdValue.textContent = this.value + '%';
+                });
+
+                function calculateDB(rms) {
+                    // Convert RMS to decibels
+                    // Reference level is -100dB (very quiet) to 0dB (maximum)
+                    const minDb = -100;
+                    if (rms < 0.00001) return minDb;
+
+                    // Calculate dB using 20 * log10(amplitude)
+                    const db = 20 * Math.log10(rms);
+                    // Normalize to 0-100 range
+                    return (db - minDb) / (-minDb) * 100;
+                }
+
+                function updateMeter() {
+                    analyzer.getByteFrequencyData(dataArray);
+
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += (dataArray[i] / 255) * (dataArray[i] / 255);
+                    }
+                    const rms = Math.sqrt(sum / dataArray.length);
+                    const sensitivity = parseInt(sensitivitySlider.value) / 100;
+                    const threshold = parseInt(thresholdSlider.value) / 100;
+
+                    // Apply threshold before calculating volume
+                    const thresholdedRms = rms < threshold ? 0 : rms - threshold;
+
+                    // Convert to logarithmic scale and apply sensitivity
+                    const volume = Math.round(calculateDB(thresholdedRms) * sensitivity);
+                    const displayVolume = Math.min(Math.max(volume, 0), 100);
+
+                    meterLevel.style.width = `${displayVolume}%`;
+                    volumeValue.textContent = `Volume: ${displayVolume} dB`;
+
+                    // Update every 100ms instead of every frame
+                    setTimeout(updateMeter, 100);
+                }
+
+                // Increase analyzer smoothing for more stable readings
+                analyzer.smoothingTimeConstant = 0.8;
+
+                updateMeter();
+            } catch (error) {
+                alert('Microphone access denied. Please allow microphone access and refresh the page.');
+            }
+        }
+
+        setupPhonometer();
+    </script>
+</body>
+
+</html>
